@@ -4,31 +4,6 @@ from tqdm import tqdm
 import re
 import pandas as pd
 
-# year_urls = [
-#     "https://www.jara.or.jp/race/2000/2000intercollege.html",
-#     "https://www.jara.or.jp/race/2001/2001intercollege.html",
-#     "https://www.jara.or.jp/race/2002/2002intercollege.html",
-#     "https://www.jara.or.jp/race/2003/2003intercollege.html",
-#     "https://www.jara.or.jp/race/2004/2004intercollege.html",
-#     "https://www.jara.or.jp/race/2005/2005intercollege.html",
-#     "https://www.jara.or.jp/race/2006/2006intercollege.html",
-#     "https://www.jara.or.jp/race/2006/2006intercollege.html",
-#     "https://www.jara.or.jp/race/2007/2007intercollege.html",
-#     "https://www.jara.or.jp/race/2008/2008intercollege.html",
-#     "https://www.jara.or.jp/race/2009/2009intercollege.html",
-#     "https://www.jara.or.jp/race/2010/2010intercollege.html",
-#     "https://www.jara.or.jp/race/2011/2011intercollege.html",
-#     "https://www.jara.or.jp/race/2012/2012intercollege.html",
-#     "https://www.jara.or.jp/race/2013/2013intercollege.html",
-#     "https://www.jara.or.jp/race/2014/2014intercollege.html",
-#     "https://www.jara.or.jp/race/2015/2015intercollege.html",
-#     "https://www.jara.or.jp/race/2016/2016intercollege.html",
-#     "https://www.jara.or.jp/race/2017/2017intercollege.html",
-#     "https://www.jara.or.jp/race/2018/2018intercollege.html",
-#     "https://www.jara.or.jp/race/2019/2019intercollege.html",
-#     "https://www.jara.or.jp/race/2020/2020intercollege.html",
-# ]
-
 year_urls = [
     "https://www.jara.or.jp/race/2000/2000alljapan.html",
     "https://www.jara.or.jp/race/2001/2001alljapan.html",
@@ -133,3 +108,5 @@ sc = RaceScrapingServise(year_urls)
 
 sc.scraping()
 df = sc.df
+# 欠損値を削除
+df = df.dropna(subset=['2000m'])
