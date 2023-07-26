@@ -5,7 +5,8 @@ import re
 import pandas as pd
 
 year_urls = [
-    "https://www.jara.or.jp/race/2000/2000freshman.html",
+    # 2020年は何らかの理由で中止
+    # "https://www.jara.or.jp/race/2000/2000freshman.html",
     "https://www.jara.or.jp/race/2001/2001freshman.html",
     "https://www.jara.or.jp/race/2002/2002freshman.html",
     "https://www.jara.or.jp/race/2003/2003freshman.html",
@@ -22,7 +23,8 @@ year_urls = [
     "https://www.jara.or.jp/race/2013/2013freshman.html",
     "https://www.jara.or.jp/race/2014/2014freshman.html",
     "https://www.jara.or.jp/race/2015/2015freshman.html",
-    "https://www.jara.or.jp/race/2016/2016freshman.html",
+    # 長沼を除外
+    # "https://www.jara.or.jp/race/2016/2016freshman.html",
     "https://www.jara.or.jp/race/2017/2017freshman.html",
     "https://www.jara.or.jp/race/2018/2018freshman.html",
     "https://www.jara.or.jp/race/2019/2019freshman.html",
@@ -37,6 +39,7 @@ class RaceScrapingServise:
 
     def __init__(self, year_urls):
         for url in year_urls:
+            print(url)
             page = requests.get(url)
             soup = BeautifulSoup(page.content, 'lxml')
             links_list = [link.get('href') for link in soup.find('table', {'id': 'event'}).find_all('a')]
