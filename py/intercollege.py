@@ -27,12 +27,13 @@ year_urls = [
     "https://www.jara.or.jp/race/2018/2018intercollege.html",
     "https://www.jara.or.jp/race/2019/2019intercollege.html",
     "https://www.jara.or.jp/race/2020/2020intercollege.html",
-    # "https://www.jara.or.jp/race/2021/2021intercollege.html"
+    "https://www.jara.or.jp/race/2021/2021alljapancollege.html",
+    "https://www.jara.or.jp/race/2022/2022intercollege.html",
 ]
 
-years = list(range(2000, 20))
-BASE_URL = "https://www.jara.or.jp/race/"
-BASE_HTML = "intercollege.html"
+# years = list(range(2000, 20))
+# BASE_URL = "https://www.jara.or.jp/race/"
+# BASE_HTML = "intercollege.html"
 
 class RaceScrapingServise:
     __columns = ['year', 'race_number', 'boat_type', 'section_code', 'lane', 'team', '500m', '1000m', '1500m', '2000m', 'order', 'qualify']
@@ -110,59 +111,6 @@ class RaceScrapingServise:
 
 sc = RaceScrapingServise(year_urls)
 
-# リファクタリング中
-def fetch_years_category_urls(years):
-    dict = {}
-    for year in years:
-        url = BASE_URL + str(year) + "/" + str(year) + BASE_HTML
-        page = requests.get(url)
-        soup = BeautifulSoup(page.content, 'lxml')
-        categories = [link.get('href') for link in soup.find('table', {'id': 'event'}).find_all('a')]
-        dict[str(year)] = categories
-    return dict
-
-def scraping(year_dict):
-    dict = {}
-    for key, value in tqdm(year_dict.items(), desc = 'list'):
-        for category in value:
-            # OX盾や総合順位は省く
-            if not re.search(r'[wm]\d[x\-\+]', category):
-                continue
-            url = BASE_URL + key + "/" + value
-            page = requests.get(url)
-            soup = BeautifulSoup(page.content, 'lxml')
-            race_results = soup.find_all('div', {'class': 'race-result'})
-
-# def scrapingRaceResults(race_results):
-
-
-years = list(range(2000, 2020))
-year_dict = fetch_years_category_urls(years)
-for key, value in tqdm(year_dict.items(), desc = 'list'):
-
-columns = ['year', 'race_number', 'boat_type', 'section_code', 'lane', 'team', '500m', '1000m', '1500m', '2000m', 'order', 'qualify']
-df = pd.DataFrame(columns=columns)
-BASE_URL = "https://www.jara.or.jp/race/"
-year_dict = {}
-
-for year in years:
-    url = BASE_URL + str(year) + "/" + str(year) + BASE_HTML
-    page = requests.get(url)
-    soup = BeautifulSoup(page.content, 'lxml')
-    categories = [link.get('href') for link in soup.find('table', {'id': 'event'}).find_all('a')]
-    year_dict[str(year)] = categories
-
-dict = {}
-for key, value in tqdm(dict.items(), desc = 'list'):
-    for category in value:
-        # OX盾や総合順位は省く
-        if not re.search(r'[wm]\d[x\-\+]', category):
-            continue
-        url = BASE_URL + key + "/" + value
-        soup = BeautifulSoup(page.content, 'lxml')
-        race_results = soup.find_all('div', {'class': 'race-result'})
-
-        # dict['year'] = key
-        # dict['boat_type'] = category[re.search(r'\_[wm]', category).start()+1:-5]
-
-print(dict)
+sc.scraping()
+df = sc.df
+df[df['2000m'] != ''].to_csv('inter_college.csv')

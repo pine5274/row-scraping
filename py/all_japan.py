@@ -30,7 +30,7 @@ year_urls = [
     "https://www.jara.or.jp/race/2022/2022alljapan.html",
 ]
 
-class RaceScrapingServise:
+class RaceScrapingService:
     __columns = ['year', 'race_number', 'boat_type', 'section_code', 'lane', 'team', '500m', '1000m', '1500m', '2000m', 'order', 'qualify']
     df = pd.DataFrame(columns=__columns)
     __dict = {}
@@ -101,10 +101,7 @@ class RaceScrapingServise:
             self.__dict['qualify'] = tds[7].text
             self.df = self.df.append(pd.Series(self.__dict.values(), index=self.__dict.keys()), ignore_index=True)
 
-    def export_csv(self):
-        self.df.to_csv('race_scraping2021.csv')
-
-sc = RaceScrapingServise(year_urls)
+sc = RaceScrapingService(year_urls)
 
 sc.scraping()
 df = sc.df
