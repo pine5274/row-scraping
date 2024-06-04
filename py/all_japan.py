@@ -28,6 +28,7 @@ year_urls = [
     "https://www.jara.or.jp/race/2020/2020alljapan.html",
     "https://www.jara.or.jp/race/2021/2021alljapancollege.html",
     "https://www.jara.or.jp/race/2022/2022alljapan.html",
+    "https://www.jara.or.jp/race/2023/2023alljapan.html",
 ]
 
 class RaceScrapingService:
@@ -107,3 +108,4 @@ sc.scraping()
 df = sc.df
 # 欠損値を削除
 df = df.dropna(subset=['2000m'])
+df.to_csv('./../dst/all_japan_2023.csv')
