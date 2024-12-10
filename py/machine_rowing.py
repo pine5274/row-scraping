@@ -1,77 +1,68 @@
-from unicodedata import category
-from pandas.core import base
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 import re
 import pandas as pd
 
-year_urls = [
-    "https://www.jara.or.jp/mr/2000/",
-    "https://www.jara.or.jp/mr/2001/",
-    "https://www.jara.or.jp/mr/2002/",
-    "https://www.jara.or.jp/mr/2003/",
-    "https://www.jara.or.jp/mr/2004/",
-    "https://www.jara.or.jp/mr/2005/",
-    "https://www.jara.or.jp/mr/2006/",
-    "https://www.jara.or.jp/mr/2007/",
-    "https://www.jara.or.jp/mr/2008/",
-    "https://www.jara.or.jp/mr/2009/",
-    "https://www.jara.or.jp/mr/2010/",
-    "https://www.jara.or.jp/mr/2011/",
-    "https://www.jara.or.jp/mr/2012/",
-    "https://www.jara.or.jp/mr/2013/",
-    "https://www.jara.or.jp/mr/2014/",
-    "https://www.jara.or.jp/mr/2015/",
-    "https://www.jara.or.jp/mr/2016/",
-    "https://www.jara.or.jp/mr/2017/",
-    "https://www.jara.or.jp/mr/2018/",
-    "https://www.jara.or.jp/mr/2019/",
+def time_to_sec(x):
+    if (type(x) is float):
+        return x
+    if (x == ''):
+        return x
+    time = x.split(':')
+    minutes = int(time[0][1])
+    seconds = float(time[1])
+    return minutes * 60 + seconds
+
+urls = [
+    "https://www.jara.or.jp/mr/current/index.html"
 ]
 
-class MrScrapingServise:
-    __columns = ['year', 'block', 'sex', 'category', 'order', 'name', 'time', 'age', 'team']
-    __dict = {}
-    df = pd.DataFrame(columns=__columns)
+# url = "https://www.jara.or.jp/race/current/2024alljapan.html"
 
-    def __init__(self, year_urls) -> None:
-        for url in tqdm(year_urls, desc='urls'):
-            page = requests.get(url)
-            soup = BeautifulSoup(page.content, 'html.parser')
-            blocks = [link.get('href') for link in soup.find('table', class_='table table-bordered table-condensed').find_all('a')]
-            for block in blocks:
-                # 総合順位はスクレイピングしない
-                if re.search(r'\d\d\d\d[AB]', block):
-                    self.scraping(url+block)
+l = []
+d = {}
 
-    def scraping(self, url):
-        base_name = url[re.search(r'\/\d\d\d\d\/', url).end():]
-        page = requests.get(url)
-        soup = BeautifulSoup(page.content, 'html.parser')
-        categories = soup.find_all('div', class_='panel panel-default')
-        for category in categories:
-            self.__dict['year'] = base_name[:4]
-            self.__dict['block'] = base_name[4:-7]
-            self.__dict['sex'] = base_name[-6:-5]
-            self.__dict['category'] = category.find('div', class_='panel-heading').text
-            self.scraping_table_data(category.find('table', class_='table'))
-        
-    def scraping_table_data(self, table):
-        rows = table.find_all('tr')
-        for i in range(len(rows)-1):
-            tds = rows[i+1].find_all('td')
-            self.__dict['order'] = tds[0].text
-            self.__dict['name']  = tds[1].text
-            self.__dict['time']  = tds[2].text
-            self.__dict['age']   = tds[3].text
-            self.__dict['team']  = tds[4].text
-            self.df = self.df.append(pd.Series(self.__dict.values(), index=self.__dict.keys()), ignore_index=True)
+# current
+for url in urls:
+    root = "https://www.jara.or.jp/mr/current/"
+    page = requests.get(url)
+    soup = BeautifulSoup(page.content, 'lxml')
+    links = [link.get('href') for link in soup.find('table', {'id': 'JaraMr'}).find_all('a')]
+    del links[-8:]
+    links = list(map(lambda x: root + x, links))
 
-    def print_df(self):
-        print(self.df)
+    for link in tqdm(links):
+        year = re.search(r'\d{4}', link).group()
 
-    def export_csv(self):
-        self.df.to_csv('../dst/machine_rowing.csv')
+        page = requests.get(link)
+        soup = BeautifulSoup(page.content, 'lxml')
+        title = soup.find('h1', {'class': 'title'}).text
+        region = re.search(r'－.+－', title).group()
+        region = region[1:-1]
+        print(title)
+        sex = re.search(r'－.*$', title).group()
+        sex = sex[-2:]
 
-sc = MrScrapingServise(year_urls)
-sc.export_csv()
+        categories = soup.find_all('div', {'class': 'panel-default'})
+
+        for race_result in categories:
+            category = race_result.find('div', {'class': 'panel-heading'}).text
+
+            rows = race_result.find_all('tr')
+            for i in range(len(rows)-1):
+                tds = rows[i+1].find_all('td')
+                d['year']         = year
+                d['region']         = region
+                d['sex']         = sex
+                d['category'] = category
+                d['rank']         = tds[0].text
+                d['name']         = tds[1].text
+                d['age']         = tds[3].text
+                d['time']        = tds[2].text
+                d['time(s)']     = time_to_sec(tds[2].text)
+                d['team']         = tds[4].text
+                l.append(d)
+                d = {}
+
+df = pd.DataFrame(l)
