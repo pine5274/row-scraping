@@ -80,7 +80,7 @@ def extract_race_data(rows, year, race_number, boat_type, section_code):
     return data_list
 
 # メイン処理
-url = "https://www.jara.or.jp/race/2024/2024alljapan.html"
+url = "https://www.jara.or.jp/race/current/2025alljapan.html"
 base_url = get_base_url(url)
 if not base_url:
     print("URLの形式が正しくありません。")
