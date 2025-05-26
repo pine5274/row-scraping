@@ -3,109 +3,136 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 import re
 import pandas as pd
+import time
 
-year_urls = [
-    "https://www.jara.or.jp/race/2000/2000alljapan.html",
-    "https://www.jara.or.jp/race/2001/2001alljapan.html",
-    "https://www.jara.or.jp/race/2002/2002alljapan.html",
-    "https://www.jara.or.jp/race/2003/2003alljapan.html",
-    "https://www.jara.or.jp/race/2004/2004alljapan.html",
-    "https://www.jara.or.jp/race/2005/2005alljapan.html",
-    "https://www.jara.or.jp/race/2006/2006alljapan.html",
-    "https://www.jara.or.jp/race/2007/2007alljapan.html",
-    "https://www.jara.or.jp/race/2008/2008alljapan.html",
-    "https://www.jara.or.jp/race/2009/2009alljapan.html",
-    "https://www.jara.or.jp/race/2010/2010alljapan.html",
-    "https://www.jara.or.jp/race/2011/2011alljapan.html",
-    "https://www.jara.or.jp/race/2012/2012alljapan.html",
-    "https://www.jara.or.jp/race/2013/2013alljapan.html",
-    "https://www.jara.or.jp/race/2014/2014alljapan.html",
-    "https://www.jara.or.jp/race/2015/2015alljapan.html",
-    "https://www.jara.or.jp/race/2016/2016alljapan.html",
-    "https://www.jara.or.jp/race/2017/2017alljapan.html",
-    "https://www.jara.or.jp/race/2018/2018alljapan.html",
-    "https://www.jara.or.jp/race/2019/2019alljapan.html",
-    "https://www.jara.or.jp/race/2020/2020alljapan.html",
-    "https://www.jara.or.jp/race/2021/2021alljapancollege.html",
-    "https://www.jara.or.jp/race/2022/2022alljapan.html",
-    "https://www.jara.or.jp/race/2023/2023alljapan.html",
-]
+def time_to_sec(x):
+    """時間を秒に変換し、小数点以下1桁に四捨五入する"""
+    if isinstance(x, float):
+        return round(x, 1)
+    if x == '':
+        return x
+    time = x.split(':')
+    minutes = int(time[0])
+    seconds = float(time[1])
+    return round(minutes * 60 + seconds, 1)
 
-class RaceScrapingService:
-    __columns = ['year', 'race_number', 'boat_type', 'section_code', 'lane', 'team', '500m', '1000m', '1500m', '2000m', 'order', 'qualify']
-    df = pd.DataFrame(columns=__columns)
-    __dict = {}
-    __links_lists =[]
+def extract_year_from_url(url):
+    """URLから4桁の年を抽出する"""
+    match = re.search(r'/(\d{4})/', url)
+    return match.group(1) if match else None
 
-    def __init__(self, year_urls):
-        for url in year_urls:
-            page = requests.get(url)
-            soup = BeautifulSoup(page.content, 'lxml')
-            links_list = [link.get('href') for link in soup.find('table', {'id': 'event'}).find_all('a')]
-            links_list = list(map(lambda x: url[:re.search(r'\d\d\d\d\/', url).end()] + x, links_list))
-            self.__links_lists.append(links_list)
+def extract_boat_type_from_href(href):
+    """hrefからボートタイプを抽出する"""
+    match = re.search(r'_(.*?)\.html', href)
+    return match.group(1) if match else None
 
-    def scraping(self):
-        for links_list in tqdm(self.__links_lists, desc = 'list'):
-            for link in tqdm(links_list, leave=False):
-                base_name = link[re.search(r'\/\d\d\d\d\/', link).end():]
+def get_base_url(url):
+    """URLからベースURLを抽出する"""
+    match = re.match(r'(.*/)\d{4}.*\.html$', url)
+    return match.group(1) if match else None
 
-                if not re.search(r'_[wm]\d[x\-\+]', base_name):
-                    continue
+def fetch_html(url):
+    """指定されたURLからHTMLを取得する"""
+    response = requests.get(url)
+    response.encoding = response.apparent_encoding
+    return response.text
 
-                self.__dict['year'] = base_name[:4]
-                self.__dict['boat_type'] = base_name[re.search(r'\_[wm]', base_name).start()+1:-5]
+def parse_event_table(soup):
+    """イベントテーブルからリンクリストを取得する"""
+    event_table = soup.find('table', {'id': 'event'})
+    if not event_table:
+        return []
+    links = event_table.find_all('a', href=True)
+    return [link['href'] for link in links]
 
-                page = requests.get(link)
-                soup = BeautifulSoup(page.content, 'lxml')
-                race_results = soup.find_all('div', {'class': 'race-result'})
-                self.scraping_race_results(race_results)
+def clean_rows(rows):
+    """class='collapse' を持つ <tr> 要素を削除"""
+    for row in rows.find_all('tr', {'class': 'collapse'}):
+        row.decompose()
+    return rows.find_all('tr')
 
-    def scraping_race_results(self, race_results):
-        for race_result in race_results:
-            race_info = race_result.find('div', {'class': 'race-info'}).find_all('div')
-            self.__dict['section_code'] = race_info[1].find('a').text
-            race_number = race_result.find('div', {'class': 'panel-heading'}).text
-            self.__dict['race_number'] = re.search(r'\d+', race_number).group()
-            if int(self.__dict['year']) >= 2020:
-                self.scraping_table_data_2020(race_result)
-            else:
-                self.scraping_table_data(race_result.find(('table')))
+def extract_race_data(rows, year, race_number, boat_type, section_code):
+    """レースデータを辞書形式で抽出"""
+    data_list = []
+    for row in rows[1:]:  # ヘッダー行をスキップ
+        cols = row.find_all('td')
+        if len(cols) < 8:
+            continue
+        race_data = {
+            'year': year,
+            'race_number': race_number,
+            'boat_type': boat_type,
+            'section_code': section_code,
+            'lane': cols[0].text.strip(),
+            'team': cols[1].text.strip(),
+            'Q1': cols[2].text.strip(),
+            'Q2': cols[3].text.strip(),
+            'Q3': cols[4].text.strip(),
+            'Q4': cols[5].text.strip(),
+            'order': cols[6].text.strip(),
+            'qualify': cols[7].text.strip(),
+            'Q1[s]': time_to_sec(cols[2].text.strip()),
+            'Q2[s]': time_to_sec(cols[3].text.strip()),
+            'Q3[s]': time_to_sec(cols[4].text.strip()),
+            'Q4[s]': time_to_sec(cols[5].text.strip()),
+        }
+        data_list.append(race_data)
+    return data_list
 
-    def scraping_table_data(self, table):
-        rows = table.find_all('tr')
-        for i in range(len(rows)-1):
-            tds = rows[i+1].find_all('td')
-            self.__dict['order']   = tds[0].text
-            self.__dict['team']    = tds[1].text
-            self.__dict['500m']    = tds[2].text
-            self.__dict['1000m']   = tds[3].text
-            self.__dict['1500m']   = tds[4].text
-            self.__dict['2000m']   = tds[5].text
-            self.__dict['lane']    = tds[6].text
-            self.__dict['qualify'] = tds[7].text
-            self.df = self.df.append(pd.Series(self.__dict.values(), index=self.__dict.keys()), ignore_index=True)
+# メイン処理
+url = "https://www.jara.or.jp/race/current/2025alljapan.html"
+base_url = get_base_url(url)
+if not base_url:
+    print("URLの形式が正しくありません。")
+    exit()
 
-    def scraping_table_data_2020(self, table):
-        for t in table.find_all('tr', {'class': 'collapse'}):
-            t.decompose()
-        rows = table.find_all('tr')
-        for i in range(len(rows)-1):
-            tds = rows[i+1].find_all('td')
-            self.__dict['order']   = tds[0].text
-            self.__dict['team']    = tds[1].text
-            self.__dict['500m']    = tds[2].text
-            self.__dict['1000m']   = tds[3].text
-            self.__dict['1500m']   = tds[4].text
-            self.__dict['2000m']   = tds[5].text
-            self.__dict['lane']    = tds[6].text
-            self.__dict['qualify'] = tds[7].text
-            self.df = self.df.append(pd.Series(self.__dict.values(), index=self.__dict.keys()), ignore_index=True)
+html = fetch_html(url)
+soup = BeautifulSoup(html, 'html.parser')
+href_list = parse_event_table(soup)
 
-sc = RaceScrapingService(year_urls)
+if not href_list:
+    print("href_list が空です。")
+    exit()
+# href_list のすべてのリンクを処理
+data_list = []  # 全データを格納するリスト
 
-sc.scraping()
-df = sc.df
-# 欠損値を削除
-df = df.dropna(subset=['2000m'])
-df.to_csv('./../dst/all_japan_2023.csv')
+for href in tqdm(href_list, desc="Processing href_list"):
+    # 各リンクの完全URLを作成
+    full_url = base_url + href
+    print(f"アクセスするURL: {full_url}")
+
+    # HTMLを取得して解析
+    html_race = fetch_html(full_url)
+    soup_race = BeautifulSoup(html_race, 'html.parser')
+    race_results = soup_race.find_all('div', class_='race-result')
+
+    # 各レース結果を処理
+    for result in race_results:
+        # レース情報を取得
+        race_info = result.find('div', class_='race-info')
+        section_code = race_info.find('a').text.strip() if race_info else None
+
+        # レース番号を取得
+        panel_heading = result.find('div', class_='panel-heading')
+        race_number = re.search(r'\d+', panel_heading.text).group() if panel_heading else None
+
+        # テーブルデータを取得
+        result_table = result.find('table')
+        if result_table:
+            rows = clean_rows(result_table)
+            year = extract_year_from_url(url)
+            boat_type = extract_boat_type_from_href(href)
+            race_data = extract_race_data(rows, year, race_number, boat_type, section_code)
+            data_list.extend(race_data)
+
+    # 5秒間隔を設ける
+    time.sleep(3)
+
+# データをデータフレームに変換
+df = pd.DataFrame(data_list)
+
+# データフレームを確認
+print(df)
+
+# 必要に応じてCSVファイルに保存
+df.to_csv('race_results.csv', index=False, encoding='utf-8-sig')
